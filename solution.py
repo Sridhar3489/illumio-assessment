@@ -1,10 +1,12 @@
+from collections import defaultdict
+
 # Function - read_lookup
 # Logic - Reads the lookup.csv file and parses it into a dictionary
 # Input - lookup.csv
 # Output - dictionary with dstport and protocol as key and tag as value
 def read_lookup(lookup_file):
     # Initializing an empty dictionary
-    lookup = {}
+    lookup = defaultdict(list)
     # Open the lookup.csv file in read mode
     with open(lookup_file, 'r') as f:
         # Ignoring the header line
@@ -16,14 +18,12 @@ def read_lookup(lookup_file):
                 continue
             # Splitting the line into parts
             parts = line.strip().split(',')
-            # Checking if the line has 3 parts 
+            # Checking if the line has 3 parts
             if len(parts) != 3:
                 continue
             # Assigning the parts to the variables
-            dstport, protocol, tag = [part.strip() for part in parts]
+            dstport, protocol, tag = [part.strip().lower() for part in parts]
             # Adding the key-value pair to the dictionary
-            if (dstport, protocol) not in lookup:
-                lookup[(dstport, protocol)] = []
             lookup[(dstport, protocol)].append(tag)
     # Returning the dictionary
     return lookup
@@ -56,12 +56,12 @@ def read_protocol(protocol_file):
     # Returning the dictionary
     return protocol
 
-def process_flow_log(flow_log_file, lookup):    
+def process_flow_log(flow_log_file, lookup):
     # Reading the protocol.csv file
     protocol_map = read_protocol('protocol.csv')
     # Initializing the tag counts and port protocol counts
-    tag_counts = {}
-    port_protocol_counts = {}
+    tag_counts = defaultdict(int)  # defaultdict for counting tags
+    port_protocol_counts = defaultdict(int)  # defaultdict for counting port/protocol
     # Opening the flow-log.log file in read mode
     with open(flow_log_file, 'r') as f:
         # Reading the rest of the lines
@@ -76,23 +76,21 @@ def process_flow_log(flow_log_file, lookup):
                 # Skipping lines with incorrect number of parts
                 continue
             # Assigning the parts to the variables
-            dstport = parts[5].strip().lower()
+            dstport = parts[6].strip().lower()
             protocol_number = parts[7].strip()
             # Getting the protocol name from the protocol map
             protocol = protocol_map.get(protocol_number, 'unknown')
             # Creating a key for the port protocol counts
-            key=(dstport, protocol)
-            # print(dstport, protocol)
+            key = (dstport, protocol)
             # Adding the count to the port protocol counts
-            port_protocol_counts[key] = port_protocol_counts.get(key, 0) + 1
+            port_protocol_counts[key] += 1
             # Creating a key for the lookup
             lookup_key = (dstport, protocol)
-            #print(lookup_key)
             # Getting the tag from the lookup
-            tags = lookup.get((dstport, protocol), ["Untagged"])
+            tags = lookup[lookup_key] if lookup[lookup_key] else ["Untagged"]
             # Adding the count to the tag counts
             for tag in tags:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+                tag_counts[tag] += 1
     # Returning the tag counts and port protocol counts
     return tag_counts, port_protocol_counts
 
@@ -106,7 +104,7 @@ def write_port_protocol_counts(output_file, port_protocol_counts):
         # Writing the header
         f.write("Port,Protocol,Count\n")
         # Writing the port/protocol counts
-        for (port, protocol), count in sorted(port_protocol_counts.items(), key=lambda x: (int(x[0][0]), x[0][1])):
+        for (port, protocol), count in sorted(port_protocol_counts.items(), key=lambda x: (int(x[0][0]) if x[0][0].isdigit() else float('inf'), x[0][1])):
             # Writing the port, protocol and count
             f.write(f"{port},{protocol},{count}\n")
 
